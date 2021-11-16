@@ -3,13 +3,28 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 
 import preprocess
 import dataloader
 import musicVAE_model
-import utils
 
 import config
+
+def accuracy(y_true, y_pred):
+    y_true = torch.argmax(y_true, axis=2)
+    total_num = y_true.shape[0] * y_true.shape[1]
+    
+    return torch.sum(y_true == y_pred) / total_num
+
+def kl_annealing(epoch, start, end, rate=0.9):
+    return end + (start - end)*(rate)**epoch
+
+def vae_loss(recon_x, x, mu, std, beta=0):
+    logvar = std.pow(2).log()
+    BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
+    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())    
+    return BCE + (beta * KLD)
 
 def save_checkpoint(
     path,
@@ -98,15 +113,15 @@ if __name__ == '__main__':
             if config.is_training_from_checkpoint:
                 beta = 0.2
             else:
-                beta = utils.kl_annealing(epoch, 0, 0.2)            
-            loss = utils.vae_loss(prob, train_set, mu, std, beta)
+                beta = kl_annealing(epoch, 0, 0.2)            
+            loss = vae_loss(prob, train_set, mu, std, beta)
 
             # backward
             loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
-            train_acc += utils.accuracy(train_set, label).item()        
+            train_acc += accuracy(train_set, label).item()        
                 
         train_loss = train_loss / (batch_idx + 1)
         train_acc = train_acc / (batch_idx + 1)
@@ -122,9 +137,9 @@ if __name__ == '__main__':
                 prob = nn.Softmax(dim=2)(output)
                 label = torch.argmax(prob,2)
 
-                loss = utils.vae_loss(prob, valid_set, mu, std)
+                loss = vae_loss(prob, valid_set, mu, std)
                 valid_loss += loss.item()
-                valid_acc += utils.accuracy(valid_set, label).item()  
+                valid_acc += accuracy(valid_set, label).item()  
 
             valid_loss = valid_loss / (batch_idx + 1)
             valid_acc = valid_acc / (batch_idx + 1)
