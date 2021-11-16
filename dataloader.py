@@ -1,5 +1,4 @@
 import pickle
-import numpy as np
 from torch.utils.data import DataLoader, random_split, Dataset
 
 import config
