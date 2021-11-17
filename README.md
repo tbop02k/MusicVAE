@@ -5,11 +5,11 @@
 
 * Only for Drum 
 
-* Some hyper parameters and minor functionalities might be different from original paper
+* Some hyper parameters and minor functionalities are different from original paper
 
 
 
-### Paper
+### Reference
 
 * [https://arxiv.org/pdf/](https://mailtrack.io/trace/link/7233bb35ccd13b3fe97c5e0cb90825a3bf1f974b?url=https%3A%2F%2Farxiv.org%2Fpdf%2F1803.05428.pdf&userId=5832393&signature=388911f56318a357)[1803.05428.pdf](https://mailtrack.io/trace/link/7233bb35ccd13b3fe97c5e0cb90825a3bf1f974b?url=https%3A%2F%2Farxiv.org%2Fpdf%2F1803.05428.pdf&userId=5832393&signature=388911f56318a357)
 
@@ -30,7 +30,7 @@ python preprocess.py
 
 * creates preprocessed pickle file
 
-* you can define detil configurations in **config.py** 
+* you can define detail configurations in **config.py** 
 
 ### Training
 
