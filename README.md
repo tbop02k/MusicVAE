@@ -45,7 +45,7 @@ python trainer.py
 ### Generation (makes midi file)
 
 ```shell
-python generate.py
+python generator.py
 ```
 
 * creates .midi file by using model check point file
