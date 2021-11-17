@@ -56,13 +56,15 @@ if __name__ == '__main__':
     pm = pretty_midi.PrettyMIDI()
     inst = pretty_midi.Instrument(program=32, is_drum=True)
     
-    for idx, note_idx in enumerate(np.argmax(np.squeeze(output), axis=1)):
+    # max arg iteration from onehot 
+    for idx, onehot_idx in enumerate(np.argmax(np.squeeze(output), axis=1)):
         start_time = beat_time * idx
         end_time = beat_time * (idx + 1)
             
-        # onehot to drum_seq    
-        drum_seq = np.array(list(map(int, list(np.binary_repr(note_idx)))))
+        # onehot idx to drum_seq    
+        drum_seq = np.array(list(map(int, list(np.binary_repr(onehot_idx)))))
         
+        # get drum channel classes from drum_seq
         for onehot_idx in np.where(drum_seq==1)[0]:             
             pitch = drumSeqIdx_to_note(onehot_idx)
             inst.notes.append(pretty_midi.Note(velocity, pitch, start_time, end_time))    
