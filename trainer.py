@@ -32,7 +32,7 @@ def save_checkpoint(
     optimizer,     
     valid_acc,        
     optimizer_scheduler, # optinal
-    ):
+):
 
     save_dict = {}
     save_dict.update({'model_state_dict': model.state_dict()})
@@ -50,20 +50,8 @@ def load_checkpoint(path = config.path_model_trained):
         checkpoint = torch.load(path)
         return checkpoint
     else:        
-        raise Exception('doest not exist checkpiont file')
-    
-def is_save_checkpoint(
-    path,
-    model, 
-    optimizer,   
-    current_valid_acc,     
-    optimizer_scheduler=None):
-    
-    checkpoint = load_checkpoint(path)
-    if current_valid_acc > checkpoint['valid_acc']:
-        save_checkpoint(path, model, optimizer, current_valid_acc, optimizer_scheduler)
+        raise Exception('doest not exist checkpiont file')   
 
-    return True
 
 if __name__ == '__main__':
 
@@ -73,7 +61,7 @@ if __name__ == '__main__':
     train_epochs = 3000
     train_set_loader, valid_set_loader = dataloader.main()
     
-    model = musicVAE_model.Model()
+    model = musicVAE_model.Model(device=device)
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -95,7 +83,7 @@ if __name__ == '__main__':
 
 
     for epoch in range(train_epochs):
-        train_loss, train_acc, valid_loss, valid_acc = 0, 0, 0, 0
+        train_loss, train_acc, valid_loss, valid_acc, previous_valid_acc = 0, 0, 0, 0, 0
         
         ## Train
         model.train()    
@@ -151,11 +139,13 @@ if __name__ == '__main__':
         if epoch % 10 ==0:
             '''
             Save model & optimizer states only 
-            when current validation accuracy is better than previously saved valid accuracy
+            when current validation accuracy is better than previous accuracy
             '''
-            is_save_checkpoint(
-                path = config.path_model_trained, 
-                model=model, 
-                optimizer=optimizer, 
-                current_valid_acc=valid_acc, 
-                optimizer_scheduler= optimizer_scheduler)
+            if previous_valid_acc < valid_acc:
+
+                save_checkpoint(
+                    path = config.path_model_trained, 
+                    model=model, 
+                    optimizer=optimizer, 
+                    valid_acc=valid_acc, 
+                    optimizer_scheduler= optimizer_scheduler)
