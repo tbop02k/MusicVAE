@@ -190,7 +190,7 @@ class Model(nn.Module):
     combined model class of the encoder, conductor and decoder
     '''
 
-    def __init__(self, decoder_num = 1):
+    def __init__(self, device, decoder_num = 1):
         super(Model, self).__init__()
         
         self.encoder = Encoder(
