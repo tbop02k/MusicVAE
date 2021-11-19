@@ -11,6 +11,8 @@ import musicVAE_model
 
 import config
 
+is_training_from_checkpoint = False
+
 def accuracy(y_true, y_pred):
     y_true = torch.argmax(y_true, axis=2)
     total_num = y_true.shape[0] * y_true.shape[1]
@@ -31,17 +33,18 @@ def save_checkpoint(
     model, 
     optimizer,     
     valid_acc,        
+    epoch,
     optimizer_scheduler, # optinal
 ):
 
-    save_dict = {}
-    save_dict.update({'model_state_dict': model.state_dict()})
-    save_dict.update({'optimizer_state_dict': optimizer.state_dict()})
-    save_dict.update({'valid_acc': valid_acc})
+    save_dict = {
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'valid_acc' : valid_acc,
+    'epoch' : epoch,
+    'optimizer_scheduler_state_dict' : optimizer_scheduler.state_dict(),
+    }
 
-    if optimizer_scheduler is not None:        
-        save_dict.update({'optimizer_scheduler_state_dict' : optimizer_scheduler.state_dict()})
-    
     torch.save(save_dict, path)
     return True
 
@@ -65,25 +68,27 @@ if __name__ == '__main__':
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    optimizer_scheduler = None
+    optimizer_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=0.01, last_epoch=-1)
     
     # continual training from check point
-    if config.is_training_from_checkpoint:        
+    if is_training_from_checkpoint:        
         checkpoint = load_checkpoint()          
         model.load_state_dict(checkpoint['model_state_dict'])
-        # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
-        if 'optimizer_scheduler_state_dict' in checkpoint.keys():
-            optimizer_scheduler.load_state_dict(checkpoint['optimizer_scheduler_state_dict'])            
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch']
+        previous_acc = checkpoint['valid_acc']
+        optimizer_scheduler = optimizer_scheduler.load_state_dict(checkpoint['optimizer_scheduler_state_dict'])
 
         print('start training from trained weight and optimizer state')
         
     else:                
+        start_epoch = 0
+        previous_valid_acc = 0        
         print('start training from zero weight')
 
 
-    for epoch in range(train_epochs):
-        train_loss, train_acc, valid_loss, valid_acc, previous_valid_acc = 0, 0, 0, 0, 0
+    for epoch in range(start_epoch, train_epochs):
+        train_loss, train_acc, valid_loss, valid_acc= 0, 0, 0, 0
         
         ## Train
         model.train()    
@@ -97,11 +102,7 @@ if __name__ == '__main__':
             label = torch.argmax(prob,2)
 
             # loss
-            
-            if config.is_training_from_checkpoint:
-                beta = 0.2
-            else:
-                beta = kl_annealing(epoch, 0, 0.2)            
+            beta = kl_annealing(epoch, 0, 0.2)            
             loss = vae_loss(prob, train_set, mu, std, beta)
 
             # backward
@@ -113,6 +114,8 @@ if __name__ == '__main__':
                 
         train_loss = train_loss / (batch_idx + 1)
         train_acc = train_acc / (batch_idx + 1)
+
+        optimizer_scheduler.step()
         
         ## Validation
         model.eval() # turn off useless layer components of Model for inference
@@ -142,10 +145,10 @@ if __name__ == '__main__':
             when current validation accuracy is better than previous accuracy
             '''
             if previous_valid_acc < valid_acc:
-
                 save_checkpoint(
                     path = config.path_model_trained, 
                     model=model, 
                     optimizer=optimizer, 
                     valid_acc=valid_acc, 
+                    epoch= epoch,
                     optimizer_scheduler= optimizer_scheduler)
