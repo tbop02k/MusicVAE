@@ -172,16 +172,16 @@ class ModelConfig:
     # encoder hyperparameter    
     encoder_input_size =  2**config.num_class
     encoder_num_layers = 2
-    encoder_hidden_size = 512        
+    encoder_hidden_size = 1024     
     latent_dim = 2 * encoder_num_layers * encoder_num_layers
     
     # conductor
-    conductor_hidden_size = 512
+    conductor_hidden_size = 1024
     conductor_num_layers = 2    
 
     # decoder
     decoder_input_size = conductor_hidden_size    
-    decoder_hidden_size = 512    
+    decoder_hidden_size = 512 
     decoder_num_layers = 2
     
 
@@ -222,8 +222,7 @@ class Model(nn.Module):
             num_layers= ModelConfig.decoder_num_layers,
             num_bars = config.num_bars,
             num_units = config.num_units
-            )   
-                         
+            )                            
     
     def forward(self, x):
         z, mu, std= self.encoder(x)
