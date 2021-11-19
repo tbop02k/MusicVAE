@@ -72,9 +72,46 @@ class Conductor(nn.Module):
         output, (_, _) = self.conductor(z)
         output = self.layers(output)            
         return output
-    
-    
-class Decoder(nn.Module):
+            
+class Decoder1(nn.Module):
+    """
+    Two layered uni directional LSTM Conductor 
+    followed by one fully connected layer with softmax for ouput
+    """    
+    def __init__(self, 
+                 input_size, 
+                 hidden_size,                
+                 num_layers,
+                 num_bars,
+                 num_units,                
+                teacher_forcing=False):
+
+        super(Decoder1, self).__init__()     
+
+        self.decoder = nn.LSTM(batch_first=True,
+                               input_size=input_size,
+                               hidden_size=hidden_size,
+                               num_layers=num_layers,
+                               bidirectional=False)
+        
+        self.output = nn.Linear(hidden_size, hidden_size)
+        self.softmax = nn.Softmax(dim=2)
+
+        self.num_bars = num_bars
+        self.num_units = num_units
+        
+
+    def forward(self, embedding_C, input_x):       
+        list_output = [] # for concat U output
+        for bar_i in range(self.num_bars):
+            input_embedding = embedding_C[:, bar_i, :].unsqueeze(1).repeat(1, self.num_units, 1)            
+            decoder_out, (_, _) = self.decoder(input_embedding)            
+            out = self.softmax(self.output(decoder_out))
+            list_output.append(out)
+        output = torch.cat(list_output, dim=1)        
+        return output   
+
+class Decoder2(nn.Module):
     """
     Two layered uni directional LSTM Conductor 
     followed by one fully connected layer with softmax for ouput
@@ -85,10 +122,11 @@ class Decoder(nn.Module):
                  hidden_size,                
                  num_layers,
                  num_bars,
-                 num_units,                
+                 num_units,          
+                 device,      
                 teacher_forcing=False):
 
-        super(Decoder, self).__init__()     
+        super(Decoder2, self).__init__()     
 
         self.decoder = nn.LSTM(batch_first=True,
                                input_size=input_size,
@@ -97,29 +135,35 @@ class Decoder(nn.Module):
                                bidirectional=False)
         
         self.output = nn.Linear(hidden_size, hidden_size)
+        self.softmax = nn.Softmax(dim=2)
 
+        self.hidden_size = hidden_size
         self.num_bars = num_bars
         self.num_units = num_units
+        self.device = device
+        self.num_layers=num_layers
     
     def forward(self, embedding_C, input_x):       
         list_output = [] # for concat U output
         for bar_i in range(self.num_bars):
-            input_embedding = embedding_C[:, bar_i, :].unsqueeze(1).repeat(1, self.num_units, 1)
-            
-            ''' being modified for teaching forcing...            
-            input_x_bar = input_x[:, bar_i*self.num_units : (bar_i+1)*self.num_units, :]
-            # embedding size + input_x_bar_size (teacher forcing)
-            input_emb_x = torch.cat([input_embedding, input_x_bar], dim=2)            
-            input_emb_x = torch.cat([input_embedding], dim=2)
-            '''
 
-            decoder_out, (_, _) = self.decoder(input_embedding)
+            dec_hidden_cell = (torch.randn(self.num_layers, embedding_C.shape[0], embedding_C.shape[2]).to(self.device), torch.randn(self.num_layers, embedding_C.shape[0], embedding_C.shape[2]).to(self.device))
+            out = torch.randn(embedding_C.shape[0], 1 , embedding_C.shape[2]).to(self.device)
+
+            input_embedding = embedding_C[:, bar_i, :].unsqueeze(1)
             
-            out = self.output(decoder_out)
-            list_output.append(out)
+            for _ in range(self.num_units):
+
+                input_concat = torch.cat([out, input_embedding], dim=2)
+                out, dec_hidden_cell= self.decoder(input_concat, dec_hidden_cell)
+
+                out = self.softmax(self.output(out))
+                list_output.append(out)
+                
         output = torch.cat(list_output, dim=1)        
-        return output   
+        return output 
 
+    
 class ModelConfig:
     '''
     This configurations is only used for Model class
@@ -146,7 +190,7 @@ class Model(nn.Module):
     combined model class of the encoder, conductor and decoder
     '''
 
-    def __init__(self):
+    def __init__(self, decoder_num = 1):
         super(Model, self).__init__()
         
         self.encoder = Encoder(
@@ -161,12 +205,25 @@ class Model(nn.Module):
             num_layers = ModelConfig.conductor_num_layers,
             num_bars = config.num_bars)
 
-        self.decoder = Decoder(
+        
+        if decoder_num == 1:
+            self.decoder = Decoder1(
+                input_size = ModelConfig.decoder_input_size, 
+                hidden_size = ModelConfig.decoder_hidden_size, 
+                num_layers= ModelConfig.decoder_num_layers,
+                num_bars = config.num_bars,
+                num_units = config.num_units
+            )
+
+        else:
+            self.decoder = Decoder2(
             input_size = ModelConfig.decoder_input_size, 
             hidden_size = ModelConfig.decoder_hidden_size, 
             num_layers= ModelConfig.decoder_num_layers,
             num_bars = config.num_bars,
-            num_units = config.num_units)
+            num_units = config.num_units
+            )   
+                         
     
     def forward(self, x):
         z, mu, std= self.encoder(x)
