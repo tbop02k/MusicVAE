@@ -43,9 +43,10 @@ def save_checkpoint(
     'valid_acc' : valid_acc,
     'epoch' : epoch,
     'optimizer_scheduler_state_dict' : optimizer_scheduler.state_dict(),
-    }
+    }    
 
     torch.save(save_dict, path)
+    print('model checkpoint saved')
     return True
 
 def load_checkpoint(path = config.path_model_trained):
@@ -68,7 +69,7 @@ if __name__ == '__main__':
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    optimizer_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=0.01, last_epoch=-1)
+    optimizer_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10)
     
     # continual training from check point
     if is_training_from_checkpoint:        
@@ -96,14 +97,13 @@ if __name__ == '__main__':
             train_set = train_set.to(device)
 
             optimizer.zero_grad()        
-            output, mu, std = model(train_set)
+            output_prob, mu, std = model(train_set)
             
-            prob = nn.Softmax(dim=2)(output)
-            label = torch.argmax(prob,2)
+            label = torch.argmax(output_prob,2)
 
             # loss
             beta = kl_annealing(epoch, 0, 0.2)            
-            loss = vae_loss(prob, train_set, mu, std, beta)
+            loss = vae_loss(output_prob, train_set, mu, std, beta)
 
             # backward
             loss.backward()
@@ -123,12 +123,11 @@ if __name__ == '__main__':
             for batch_idx, valid_set in enumerate(valid_set_loader):
                 valid_set = valid_set.to(device)
                 
-                output, mu, std = model(valid_set)
+                output_prob, mu, std = model(valid_set)
+                
+                label = torch.argmax(output_prob,2)
 
-                prob = nn.Softmax(dim=2)(output)
-                label = torch.argmax(prob,2)
-
-                loss = vae_loss(prob, valid_set, mu, std)
+                loss = vae_loss(output_prob, valid_set, mu, std)
                 valid_loss += loss.item()
                 valid_acc += accuracy(valid_set, label).item()  
 
@@ -139,12 +138,10 @@ if __name__ == '__main__':
         train loss : {train_loss}, train_acc : {train_acc}, valid loss : {valid_loss}, valid_acc: {valid_acc}
         """)
 
-        if epoch % 10 ==0:
-            '''
-            Save model & optimizer states only 
-            when current validation accuracy is better than previous accuracy
-            '''
+        if epoch % 10 == 0:
             if previous_valid_acc < valid_acc:
+                previous_valid_acc = valid_acc
+
                 save_checkpoint(
                     path = config.path_model_trained, 
                     model=model, 
